@@ -54,20 +54,6 @@ while True:
         else:
             print("Invalid choice. Please enter 1, 2, or 3.")
 
-#SAVE AND CHECK PRICES
-
-
-    #stop condition
-    if ticker_symbol.lower() == 'done' or ticker_symbol == "":
-        break
-
-    #Check for duplictes
-    if ticker_symbol.upper() not in portfolio_tickers:
-        portfolio_tickers.append(ticker_symbol.upper())
-        print(f"Added {ticker_symbol.upper()}.")
-    else:
-        print(f"{ticker_symbol.upper()} is already in the list.")
-
 
 #SAVE AND CHECK PRICES
 save_portfolio(portfolio_tickers)
