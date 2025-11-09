@@ -1,24 +1,32 @@
-import yfinance as yf
+from stock_utils import check_price
 
-# Ask the user for a stock ticker
-#the input() function pauses the script and waits for user input
+#Start with an empty list
+portfolio_tickers = []
 
-ticker_symbol = input("Enter the stock ticker symbol: ")
+print("--- Build your Portfolio ---")
+print("Enter stock tickers one by one. Press Enter to finish.")
 
-try:
-    #create a Ticker object using the user's input
-    stock = yf.Ticker(ticker_symbol)
+#A while loop to get user input
+while True:
+    #Ask for ticker
+    ticker_symbol = input("Add ticker: ")
 
-    #Get the stock's information
-    stock_info = stock.info
-    #Check if the price data exits BEFORE trying to access it
-    if 'regularMarketPrice' in stock_info and stock_info['regularMarketPrice'] is not None:
-        price = stock_info['regularMarketPrice']
-        #We also use .upper() to make the output look clean
-        print(f"The current market price for {ticker_symbol.upper()} is : {price}")
-    else:
-        #This handles tickers that exist but have no price data
-        print(f"could not find current market price data for '{ticker_symbol.upper()}.'")   
-except Exception as e:
-    #This handles invalid tickers or other errors
-    print(f"An error occurred: {e}")
+    #check for the "stop signal" (empty string)
+    if ticker_symbol == "":
+        break #Exit the while loop
+
+    #Add the ticker to our list
+    #.upper() cleans the input
+    portfolio_tickers.append(ticker_symbol)
+
+print(f"\nPortfolio created. You have {len(portfolio_tickers)} stocks.")
+print("--- Checking Your Portfolio ---")
+
+#Check if the list has anything in it befor running
+if len(portfolio_tickers) > 0:
+    for ticker in portfolio_tickers:
+        check_price(ticker)
+
+    print("--- End of Report ---")
+else:
+    print("Your portfolio is empty. Nothing to check.")
