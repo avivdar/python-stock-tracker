@@ -33,7 +33,11 @@ def add_ticker(tickers_list, ticker_to_add):
     Adds a ticker to the list if it doesn't already exist.
     Return a status message.'''
     if ticker_exists(tickers_list,ticker_to_add):
-        return f"{ticker_to_add.upper()}"
+        return f"{ticker_to_add.upper()} is already in the list."
+    else:
+        #If not append it
+        tickers_list.append(ticker_to_add.upper())
+        return f"Added {ticker_to_add.upper()}."
 
 def remove_ticker(tickers_list, ticker_to_remove):
     '''

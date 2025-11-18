@@ -1,3 +1,5 @@
+
+import pandas as pd
 from stock_utils import(
      get_stock_data,
      load_portfolio,
@@ -18,14 +20,13 @@ else:
 
 
 #'add' loop works if list is empty or not
-while True:
     while True:
         print("\n--- Portfolio Managment ---")
         print("1. Add a ticker")
         print("2. Remove a ticker")
         print("3. continue to portfolio check")
 
-        choice = input("Enter youe choice(1,2,or 3):").strip()
+        choice = input("Enter your choice(1,2,or 3):").strip()
 
         #--- choice 1: Add ---
         if choice == '1':
@@ -60,18 +61,51 @@ save_portfolio(portfolio_tickers)
 print(f"\nPortfolio saved. You have {len(portfolio_tickers)} stocks")
 print("--- Checking Your Portfolio ---")
 
-#Now we check each stock in the portfolio
 if len(portfolio_tickers) > 0:
+
+    #Create empty lists to hold our results
+    successful_results = []
+    failed_results = []
+
+    #loop and sort data into the two lists
     for ticker in portfolio_tickers:
         data = get_stock_data(ticker)
 
         if data['status'] == 'success':
-            print(f"{data['ticker']} ({data['name']}): ${data['price']}")
-        elif data['status'] == 'no_price_data':
-            print(f"{data['ticker']}: Price data not found.")
-        elif data['status'] == 'fail':
-            print(f"{data['ticker']} : could not retrieve data.")
+            successful_results.append(data)
+        else:
+            failed_results.append(data)
+    # --- Display success table ---
+    if successful_results:
+        print("\n--- Portfolio Report ---")
 
-    print("--- End of Portfolio ---")
+        #convert list of dictionaries to a Pandas DataFrame
+        df = pd.DataFrame(successful_results)
+
+        #set 'ticker' as the index (row labels)
+        df = df.set_index('ticker')
+
+        #Select and order our columns
+        df = df[['name','price']]
+
+        #Print the final,formatted table
+        print(df)
+        #--- Display failed tickers ---
+    if failed_results:
+        print("\n--- Failed tickers ---")
+        for item in failed_results:
+            if item['status'] == 'no_price_data':
+                print(f"- {item['ticker']}: Price data not found.")
+            else: #fail
+                print(f"- {item['ticker']}: could not retrieve data.")
+    
+    #--- Display final summary count ---\
+    total_count = len(portfolio_tickers)
+    failed_count = len(failed_results)
+
+    print("\n-----------------------")
+    print(f"Summary: Failed {failed_count} out of {total_count} stocks.")
+    print("-------------------------")
+
 else:
-    print("Your portfolio is empty. Nothing to check.")
+    print("Your portfolio is empty. No stocks to check.")
