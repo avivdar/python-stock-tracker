@@ -1,6 +1,6 @@
 import os
 import yfinance as yf
-from helper_functions import ticker_exists, ask_confirmation
+from helper_functions import ticker_exists, ask_confirmation, format_market_cap, color_text
 
 def load_portfolio(filename="portfolio.txt"):
     '''
@@ -67,6 +67,7 @@ def get_stock_data(ticker_symbol):
 
     '''
     Gets stock data for a single ticker and return it as a dictionary.
+    calculates change %, and adds formatting
     '''
     try:
         #create a Ticker object using the user's input
@@ -75,14 +76,36 @@ def get_stock_data(ticker_symbol):
 
         #Check if the core data exists
         if 'regularMarketPrice' in stock_info and stock_info['regularMarketPrice'] is not None:
+           
+           current_price = stock_info['regularMarketPrice']
+           prev_close = stock_info.get('regularMarketPreviousClose', current_price) #Fallback to current price if not available
+           market_cap_raw = stock_info.get('marketCap', None)
+
+           #Calculate Percent Change
+           #FONULA: (current - previous) / previous * 100
+           if prev_close:
+                change_percent = ((current_price - prev_close) / prev_close) * 100
+           else:
+                change_percent = 0.0
+
+
+           #Format the change String
+           change_str = f"{change_percent:+.2f}%"
+           #Apply color to the change string
+           colored_change = color_text(change_str, change_percent)
+           
+            
+           
             #We found the data, we build a dictionary to return
-            data = {
+           data = {
                 'ticker' : ticker_symbol.upper(),
-                'price' : stock_info['regularMarketPrice'],
                 'name' : stock_info.get('shortName', 'N/A'), # .get() is safer
+                'price' : current_price,
+                'change_pct' : colored_change,
+                'mkt_cap' : format_market_cap(market_cap_raw),
                 'status' : 'success'
             }
-            return data
+           return data
         else:
             #This handles tickers that exist but have no price data
             return {'ticker' : ticker_symbol.upper(), 'status' : 'no_price_data'}
