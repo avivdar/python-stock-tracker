@@ -70,32 +70,32 @@ def remove_ticker(tickers_list, ticker_to_remove):
 
 def _compute_change_percent(current_price: float, prev_close: Optional[float]) -> float:
     '''
-    Compute percentage change between current and previous cloase.
+    Compute percentage change between current and previous close.
     Return 0.0 safely if prev_close is None or 0.
     '''
     if prev_close is None or prev_close == 0:
         return 0.0
     return (current_price - prev_close) / prev_close * 100.0
 
-def _format_change_colores(change_percent: float) -> str:
+def _format_change_colored(change_percent: float) -> str:
     '''
-    Build the formatted, colored percentage string(e.g '_1.23%')
+    Build the formatted, colored percentage string(e.g '+1.23%')
     whithput touching any yfinance objects.
     '''
     change_str = f"{change_percent:+.2f}%"
     return color_text(change_str, change_percent)
 
-def get_stock_data(ticker_symbol: str) -> Dict[str,Any]:
+def get_stock_data(ticker_symbol: str) -> Dict[str, Any]:
 
 
-    '''
+    """
     Gets stock data for a single ticker and return it as a dictionary.
     - Normalize the ticker symbol
     - Fetch raw data safely from yfinance
     - Compute change %
     - Format fields for display
     - Return a dict with a 'status' field describing success/failure
-    '''
+    """
 
     #Normalize ticker symbol
     normalized_ticker = ticker_symbol.strip().upper()
@@ -125,7 +125,7 @@ def get_stock_data(ticker_symbol: str) -> Dict[str,Any]:
     change_percent = _compute_change_percent(current_price, prev_close)
 
     # Format colored change string using our helper
-    colored_change = _format_change_colores(change_percent)
+    colored_change = _format_change_colored(change_percent)
 
     # Build the final data dict in one place
     data: Dict[str, Any] = {
