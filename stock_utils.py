@@ -125,7 +125,7 @@ def get_stock_data(ticker_symbol: str) -> Dict[str,Any]:
     change_percent = _compute_change_percent(current_price, prev_close)
 
     # Format colored change string using our helper
-    colored_change = _format_change_colored(change_percent)
+    colored_change = _format_change_colores(change_percent)
 
     # Build the final data dict in one place
     data: Dict[str, Any] = {
