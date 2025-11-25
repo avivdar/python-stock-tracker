@@ -86,7 +86,7 @@ if len(portfolio_tickers) > 0:
         df = df.set_index('ticker')
 
         #Select and order our columns
-        df = df[['name','price', 'change_pct', 'mkt_cap']]
+        df = df[['name','price', 'change_pct_display', 'mkt_cap']]
         #Rename columns for better display
         df.columns = ['Name', 'Price', 'Change %', 'Mkt Cap']
         #Print the final,formatted table

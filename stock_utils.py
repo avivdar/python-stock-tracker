@@ -1,6 +1,12 @@
 import os
 import yfinance as yf
-from helper_functions import ticker_exists, ask_confirmation, format_market_cap, color_text
+from typing import Any, Dict, Optional
+from helper_functions import (
+                            ticker_exists,
+                            ask_confirmation,
+                            format_market_cap,
+                            color_text
+                            )
 
 def load_portfolio(filename="portfolio.txt"):
     '''
@@ -62,58 +68,75 @@ def remove_ticker(tickers_list, ticker_to_remove):
         return f"Removal of {ticker_to_remove_upper} cancelled."
     
 
-def get_stock_data(ticker_symbol):
+def _compute_change_percent(current_price: float, prev_close: Optional[float]) -> float:
+    '''
+    Compute percentage change between current and previous cloase.
+    Return 0.0 safely if prev_close is None or 0.
+    '''
+    if prev_close is None or prev_close == 0:
+        return 0.0
+    return (current_price - prev_close) / prev_close * 100.0
+
+def _format_change_colores(change_percent: float) -> str:
+    '''
+    Build the formatted, colored percentage string(e.g '_1.23%')
+    whithput touching any yfinance objects.
+    '''
+    change_str = f"{change_percent:+.2f}%"
+    return color_text(change_str, change_percent)
+
+def get_stock_data(ticker_symbol: str) -> Dict[str,Any]:
 
 
     '''
     Gets stock data for a single ticker and return it as a dictionary.
-    calculates change %, and adds formatting
+    - Normalize the ticker symbol
+    - Fetch raw data safely from yfinance
+    - Compute change %
+    - Format fields for display
+    - Return a dict with a 'status' field describing success/failure
     '''
+
+    #Normalize ticker symbol
+    normalized_ticker = ticker_symbol.strip().upper()
+    if not normalized_ticker:
+        #nothing to look up
+        return {"ticker": "", "status": "fail"}
+    
     try:
         #create a Ticker object using the user's input
-        stock = yf.Ticker(ticker_symbol)
+        stock = yf.Ticker(normalized_ticker)
         stock_info = stock.info
+    except Exception:
+        #Network error or other issue
+        return {"ticker" : normalized_ticker, "status" : "fail"}
 
-        #Check if the core data exists
-        if 'regularMarketPrice' in stock_info and stock_info['regularMarketPrice'] is not None:
-           
-           current_price = stock_info['regularMarketPrice']
-           prev_close = stock_info.get('regularMarketPreviousClose', current_price) #Fallback to current price if not available
-           market_cap_raw = stock_info.get('marketCap', None)
+    # Safely pull the core fields we need
 
-           #Calculate Percent Change
-           #FONULA: (current - previous) / previous * 100
-           if prev_close:
-                change_percent = ((current_price - prev_close) / prev_close) * 100
-           else:
-                change_percent = 0.0
-
-
-           #Format the change String
-           change_str = f"{change_percent:+.2f}%"
-           #Apply color to the change string
-           colored_change = color_text(change_str, change_percent)
-           
-            
-           
-            #We found the data, we build a dictionary to return
-           data = {
-                'ticker' : ticker_symbol.upper(),
-                'name' : stock_info.get('shortName', 'N/A'), # .get() is safer
-                'price' : current_price,
-                'change_pct' : colored_change,
-                'mkt_cap' : format_market_cap(market_cap_raw),
-                'status' : 'success'
-            }
-           return data
-        else:
-            #This handles tickers that exist but have no price data
-            return {'ticker' : ticker_symbol.upper(), 'status' : 'no_price_data'}
-           
-    except Exception as e:
-        #The ticker is invalid or a network error occurred
-        #print(f"DEBUG: Error for {ticker_symbol} : {e}") #Debug line
-        return {'ticker' : ticker_symbol.upper(), 'status' : 'fail'}
+    current_price = stock_info.get("regularMarketPrice")
+    if current_price is None:
+        # Ticker exists but has no usable price data
+        return {"ticker": normalized_ticker, "status": "no_price_data"}
     
+    prev_close = stock_info.get("regularMarketPreviousClose")
+    market_cap_raw = stock_info.get("marketCap")
+
+    # Compute change % using our helper
+    change_percent = _compute_change_percent(current_price, prev_close)
+
+    # Format colored change string using our helper
+    colored_change = _format_change_colored(change_percent)
+
+    # Build the final data dict in one place
+    data: Dict[str, Any] = {
+        "ticker": normalized_ticker,
+        "name": stock_info.get("shortName", "N/A"),
+        "price": current_price,
+        "change_pct_raw": change_percent,
+        "change_pct_display":colored_change, 
+        "mkt_cap": format_market_cap(market_cap_raw),
+        "status": "success",
+    }
+    return data
 
 
