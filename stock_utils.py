@@ -1,4 +1,5 @@
 import os
+import logging
 import yfinance as yf
 from typing import Any, Dict, Optional
 from helper_functions import (
@@ -8,12 +9,15 @@ from helper_functions import (
                             color_text
                             )
 
+
+logger = logging.getLogger(__name__)
+
 def load_portfolio(filename="portfolio.txt"):
     '''
     Loads a portfolio from a text file.
     Returns a list of tickers.
     '''
-    portfolio = []
+    portfolio : list[str] = []
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             for line in f:
@@ -21,6 +25,9 @@ def load_portfolio(filename="portfolio.txt"):
                 ticker = line.strip()
                 if ticker: #Make sure the line wasn't empty
                     portfolio.append(ticker)
+        logger.info("Loaded %d tickers from %s", len(portfolio), filename)
+    else: 
+        logger.info("No portfolio file found at %s, starting empty.", filename)
     return portfolio
 
 
@@ -32,6 +39,7 @@ def save_portfolio(tickers, filename="portfolio.txt"):
     with open(filename, 'w') as f:
         for ticker in tickers:
             f.write(f"{ticker}\n")
+    logger.info("Saved %d tickers to %s", len(tickers), filename)
 
 
 def add_ticker(tickers_list, ticker_to_add):
@@ -107,8 +115,9 @@ def get_stock_data(ticker_symbol: str) -> Dict[str, Any]:
         #create a Ticker object using the user's input
         stock = yf.Ticker(normalized_ticker)
         stock_info = stock.info
-    except Exception:
+    except Exception as e:
         #Network error or other issue
+        logger.exception("Error fetching data for %s", normalized_ticker)
         return {"ticker" : normalized_ticker, "status" : "fail"}
 
     # Safely pull the core fields we need
@@ -116,6 +125,7 @@ def get_stock_data(ticker_symbol: str) -> Dict[str, Any]:
     current_price = stock_info.get("regularMarketPrice")
     if current_price is None:
         # Ticker exists but has no usable price data
+        logger.warning("No price data for %s", normalized_ticker)
         return {"ticker": normalized_ticker, "status": "no_price_data"}
     
     prev_close = stock_info.get("regularMarketPreviousClose")

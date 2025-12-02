@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 from stock_utils import (
     get_stock_data,
@@ -6,6 +7,8 @@ from stock_utils import (
     add_ticker,
     remove_ticker,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
@@ -133,4 +136,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level = logging.INFO,
+        format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
     main()
