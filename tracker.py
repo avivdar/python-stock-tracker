@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+from typing import List, Dict, Any
 from stock_utils import (
     get_stock_data,
     load_portfolio,
@@ -9,6 +10,32 @@ from stock_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+def print_portfolio_table(successful_results: List[Dict[str, Any]]) -> None:
+    """
+    Print a simple, aligned portfolio table without relying on pandas' default
+    console formatting (which can look odd in some terminals).
+    """
+    if not successful_results:
+        print("No successful stock data to display.")
+        return
+
+    # Header
+    header = f"{'Ticker':<8} {'Name':<25} {'Price':>10} {'Change %':>10} {'Mkt Cap':>10}"
+    print(header)
+    print("-" * len(header))
+
+    # Rows
+    for item in successful_results:
+        ticker = item.get("ticker", "")
+        name = item.get("name", "")[:24]  # truncate long names
+        price = item.get("price", 0.0)
+        change = item.get("change_pct_display", "")
+        mkt_cap = item.get("mkt_cap", "")
+
+        print(
+            f"{ticker:<8} {name:<25} {price:>10.2f} {change:>10} {mkt_cap:>10}"
+        )
 
 
 def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
@@ -95,11 +122,7 @@ def check_portfolio(portfolio_tickers: list[str]) -> None:
     # --- Display success table ---
     if successful_results:
         print("\n--- Portfolio Report ---")
-        df = pd.DataFrame(successful_results)
-        df = df.set_index("ticker")
-        df = df[["name", "price", "change_pct_display", "mkt_cap"]]
-        df.columns = ["Name", "Price", "Change %", "Mkt Cap"]
-        print(df)
+        print_portfolio_table(successful_results)
     else:
         print("No successful stock data to display.")
 

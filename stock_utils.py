@@ -1,6 +1,9 @@
 import os
+import re
+import json
 import logging
 import yfinance as yf
+from datetime import datetime
 from typing import Any, Dict, Optional
 from helper_functions import (
                             ticker_exists,
@@ -12,34 +15,92 @@ from helper_functions import (
 
 logger = logging.getLogger(__name__)
 
-def load_portfolio(filename="portfolio.txt"):
+def load_portfolio(filename: str = "portfolio.json") -> list[str]:
     '''
-    Loads a portfolio from a text file.
-    Returns a list of tickers.
+    Loads a portfolio from a JSON file.
+
+    Returns:
+        list[str]: list of tickers in the portfolio.
+        
+    JSON structure:
+        {
+            "tickers": ["AAPL", "MSFT", "TSLA"],
+            "updated_at": "2025-12-03T14:30:00"
+        }
     '''
     portfolio : list[str] = []
+
     if os.path.exists(filename):
-        with open(filename, 'r') as f:
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            tickers = data.get("tickers", [])
+            #ensure all are stings and non-empty
+            raw_portfolio = [str(t).strip().upper() for t in tickers if str(t).strip()]
+
+            # Allow only valid stock-like identifiers: A–Z, 0–9, dot, hyphen
+            valid_ticker_pattern = re.compile(r'^[A-Z0-9\.\-]+$')
+
+            portfolio = [t for t in raw_portfolio if valid_ticker_pattern.match(t)]
+
+            # Log if we dropped invalid items
+            dropped = len(raw_portfolio) - len(portfolio)
+            if dropped > 0:
+                logger.warning(
+                    "Dropped %d invalid tickers from %s when loading JSON.",
+                    dropped,
+                    filename,
+                )
+            portfolio = raw_portfolio
+            logger.info("Loaded %d tickers from %s", len(portfolio), filename)
+            return portfolio
+        except Exception as e:
+            logger.exception("Faild to load portfolio from %s", filename)
+            #fall back to empty if JSON is corrupted
+            return []
+    
+    #Fallback: if old text file exist, migrate once
+    legacy_text = "portfolio.txt"
+    if os.path.exists(legacy_text):
+        with open(legacy_text, "r",encoding="utf-8") as f:
             for line in f:
-                #.strip() removes whitespace and newline chars
                 ticker = line.strip()
-                if ticker: #Make sure the line wasn't empty
-                    portfolio.append(ticker)
-        logger.info("Loaded %d tickers from %s", len(portfolio), filename)
-    else: 
-        logger.info("No portfolio file found at %s, starting empty.", filename)
+                if ticker:
+                    portfolio.append(ticker.upper())
+        logger.info(
+            "Loaded %d tickers from legacy %s, will save as JSON next time.",
+            len(portfolio),
+            legacy_text
+        )
+        return portfolio
+    
+    logger.info("No portfolio file found. Starting with empty portfolio.")
     return portfolio
 
 
-def save_portfolio(tickers, filename="portfolio.txt"):
+def save_portfolio(tickers: list[str], filename: str = "portfolio.json") -> None:
     '''
-    Saves a list of tickers to a text file, one per line.
+    Saves a list of tickers to a JSON file.
+
+    JSON structure:
+        {
+            "tickers": ["AAPL", "MSFT", "TSLA"],
+            "updated_at": "2025-12-03T14:30:00"
+        }
     '''
 
-    with open(filename, 'w') as f:
-        for ticker in tickers:
-            f.write(f"{ticker}\n")
-    logger.info("Saved %d tickers to %s", len(tickers), filename)
+    data = {
+        "tickers": [t.strip().upper() for t in tickers if t.strip()],
+        "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    
+    }
+
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data,f,indent=2)
+        logger.info("Saved %d tickers to %s", len(data["tickers"]), filename)
+    except Exception:
+        logger.exception("Failed to save portfolio to %s", filename)
 
 
 def add_ticker(tickers_list, ticker_to_add):
