@@ -1,12 +1,9 @@
 import logging
-import pandas as pd
 from typing import List, Dict, Any
+
 from stock_utils import (
     get_stock_data,
-    load_portfolio,
-    save_portfolio,
-    add_ticker,
-    remove_ticker,
+    Portfolio,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,33 +18,35 @@ def print_portfolio_table(successful_results: List[Dict[str, Any]]) -> None:
         return
 
     # Header
-    header = f"{'Ticker':<8} {'Name':<25} {'Price':>10} {'Change %':>10} {'Mkt Cap':>10}"
+    header = f"{'Ticker':<8} {'Name':<28} {'Price':>10} {'Change %':>9} {'Mkt Cap':>10}"
     print(header)
     print("-" * len(header))
 
     # Rows
     for item in successful_results:
         ticker = item.get("ticker", "")
-        name = item.get("name", "")[:24]  # truncate long names
+        name = item.get("name", "")[:27]  # truncate long names
         price = item.get("price", 0.0)
-        change = item.get("change_pct_display", "")
+        # Use the raw numeric change for alignment
+        change_raw = item.get("change_pct_raw", 0.0)
+        change_str = f"{change_raw:+.2f}%"
         mkt_cap = item.get("mkt_cap", "")
-
+        
         print(
-            f"{ticker:<8} {name:<25} {price:>10.2f} {change:>10} {mkt_cap:>10}"
+            f"{ticker:<8} {name:<28} {price:>10.2f} {change_str:>9} {mkt_cap:>10}"
         )
 
 
-def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
+def manage_portfolio(portfolio: Portfolio) -> Portfolio:
     """
     Handle the interactive menu for adding/removing tickers.
 
-    Mutates and returns the portfolio_tickers list.
+    Mutates and returns the same Portfolio object.
     """
     # Check if we loaded anything and show the user
-    if portfolio_tickers:
+    if portfolio.tickers:
         print("--- Welcome Back ---")
-        print(f"Your current portfolio: {', '.join(portfolio_tickers)}")
+        print(f"Your current portfolio: {', '.join(portfolio.tickers)}")
     else:
         print(" --- Welcome! your portfolio is empty. ---")
 
@@ -64,9 +63,9 @@ def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
         if choice == "1":
             ticker_to_add = input("Enter ticker to add: ").strip()
             if ticker_to_add:  # Ensure it's not empty
-                message = add_ticker(portfolio_tickers, ticker_to_add)
+                message = portfolio.add(ticker_to_add)
                 print(f"\n{message}")
-                print(f"Current portfolio: {', '.join(portfolio_tickers)}")
+                print(f"Current portfolio: {', '.join(portfolio.tickers)}")
             else:
                 print("No ticker entered.")
 
@@ -74,9 +73,9 @@ def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
         elif choice == "2":
             ticker_to_remove = input("Enter ticker to remove: ").strip()
             if ticker_to_remove:  # Ensure it's not empty
-                message = remove_ticker(portfolio_tickers, ticker_to_remove)
+                message = portfolio.remove(ticker_to_remove)
                 print(f"\n{message}")
-                print(f"Current portfolio: {', '.join(portfolio_tickers)}")
+                print(f"Current portfolio: {', '.join(portfolio.tickers)}")
             else:
                 print("No ticker entered.")
 
@@ -89,29 +88,29 @@ def manage_portfolio(portfolio_tickers: list[str]) -> list[str]:
         else:
             print("Invalid choice. Please enter 1, 2, or 3.")
 
-    return portfolio_tickers
+    return portfolio
 
 
-def check_portfolio(portfolio_tickers: list[str]) -> None:
+def check_portfolio(portfolio: Portfolio) -> None:
     """
     Save the portfolio and check current prices for all tickers.
     Prints a report and summary.
     """
     # SAVE AND CHECK PRICES
-    save_portfolio(portfolio_tickers)
-    print(f"\nPortfolio saved. You have {len(portfolio_tickers)} stocks")
+    portfolio.save()
+    print(f"\nPortfolio saved. You have {len(portfolio)} stocks")
     print("--- Checking Your Portfolio ---")
 
-    if not portfolio_tickers:
+    if len(portfolio) == 0:
         print("Your portfolio is empty. No stocks to check.")
         return
 
     # Create empty lists to hold our results
-    successful_results: list[dict] = []
-    failed_results: list[dict] = []
+    successful_results: list[dict[str, Any]] = []
+    failed_results: list[dict[str, Any]] = []
 
     # Loop and sort data into the two lists
-    for ticker in portfolio_tickers:
+    for ticker in portfolio:
         data = get_stock_data(ticker)
 
         if data["status"] == "success":
@@ -136,7 +135,7 @@ def check_portfolio(portfolio_tickers: list[str]) -> None:
                 print(f"- {item['ticker']}: could not retrieve data.")
 
     # --- Display final summary count ---
-    total_count = len(portfolio_tickers)
+    total_count = len(portfolio)
     failed_count = len(failed_results)
 
     print("\n-----------------------")
@@ -149,14 +148,13 @@ def main() -> None:
     Entry point for the portfolio tracker CLI.
     """
     # 1. Load initial portfolio
-    portfolio_tickers = load_portfolio()
+    portfolio = Portfolio.load()
 
     # 2. Let the user manage the portfolio interactively
-    portfolio_tickers = manage_portfolio(portfolio_tickers)
+    portfolio = manage_portfolio(portfolio)
 
     # 3. Save and check prices
-    check_portfolio(portfolio_tickers)
-
+    check_portfolio(portfolio)
 
 if __name__ == "__main__":
     logging.basicConfig(

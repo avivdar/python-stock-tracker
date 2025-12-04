@@ -15,126 +15,158 @@ from helper_functions import (
 
 logger = logging.getLogger(__name__)
 
-def load_portfolio(filename: str = "portfolio.json") -> list[str]:
-    '''
-    Loads a portfolio from a JSON file.
+class Portfolio:
+    """
+    Represent a portfolio of stock tickers, with load/save/add/remove
+    operation and a default JSON backing file.
+    """
 
-    Returns:
-        list[str]: list of tickers in the portfolio.
-        
-    JSON structure:
-        {
-            "tickers": ["AAPL", "MSFT", "TSLA"],
-            "updated_at": "2025-12-03T14:30:00"
+    def __init__(self,tickers: Optional[list[str]] = None, filename: str = "portfolio.json") -> None:
+        self.tickers: list[str] = tickers or []
+        self.filename: str = filename
+
+    def __len__(self) -> int:
+        return len(self.tickers)
+
+    def __iter__(self):
+        return iter(self.tickers)
+
+    def __repr__(self) -> str:
+        return f"Portfolio(tickers={self.tickers!r}, filename={self.filename!r})"
+
+    # --------- Persistence ---------
+
+    @classmethod
+    def load(cls, filename: str = "portfolio.json") -> "Portfolio":
+            """
+            Load a portfolio from JSON if exists,
+            otherwise create empty.
+            """
+            #JSON path
+            if os.path.exists(filename):
+                try:
+                    with open(filename, "r",encoding="utf-8") as f:
+                        data = json.load(f)
+                    tickers = data.get("tickers", [])
+
+                    #normalize and validate tickers
+                    raw_portfolio = [str(t).strip().upper() for t in tickers if str(t).strip()]
+                    valid_ticker_pattern = re.compile(r"^[A-Z0-9\.\-]+$")
+                    cleaned = [t for t in raw_portfolio if valid_ticker_pattern.match(t)]
+
+
+                    dropped = len(raw_portfolio) - len(cleaned)
+                    if dropped > 0:
+                        logger.warning(
+                            "Dropped %d invalid tickers from %s when loading JSON.",
+                            dropped,
+                            filename,
+                        )
+                    logger.info("Loaded %d tickers from %s", len(cleaned), filename)
+                    return cls(cleaned, filename=filename)
+                except Exception:
+                    logger.exception("Failed to load portfolio from %s", filename)
+                    return cls([], filename=filename)
+
+            legacy_text = "portfolio.txt"
+            if os.path.exists(legacy_text):
+                tickers: list[str] = []
+                try:
+                    with open(legacy_text, "r", encoding="utf-8") as f:
+                        for line in f:
+                            ticker = line.strip()
+                            if ticker:
+                                tickers.append(ticker.upper())
+                    logger.info(
+                        "Loaded %d tickers from legacy %s, will save as JSON next time.",
+                        len(tickers),
+                        legacy_text,
+                    )
+                    return cls(tickers, filename = filename)
+                except Exception:
+                    logger.exception("Failed to load legacy portfolio from %s", legacy_text)
+                    return cls([], filename = filename)
+
+    def save(self) -> None:
+        """
+        Save the portfolio to JSON file.
+        """
+        clean_tickers = [t.strip().upper() for t in self.tickers if t.strip()]
+        data = {
+            "tickers": clean_tickers,
+            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         }
-    '''
-    portfolio : list[str] = []
-
-    if os.path.exists(filename):
         try:
-            with open(filename, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            tickers = data.get("tickers", [])
-            #ensure all are stings and non-empty
-            raw_portfolio = [str(t).strip().upper() for t in tickers if str(t).strip()]
+            with open(self.filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            logger.info("Saved %d tickers to %s", len(clean_tickers), self.filename)
+        except Exception:
+            logger.exception("Failed to save portfolio to %s", self.filename)
 
-            # Allow only valid stock-like identifiers: A–Z, 0–9, dot, hyphen
-            valid_ticker_pattern = re.compile(r'^[A-Z0-9\.\-]+$')
+    # --------- Operations ---------
 
-            portfolio = [t for t in raw_portfolio if valid_ticker_pattern.match(t)]
+    def add(self, ticker : str) -> str:
+        """
+        Add a ticker if it doesn't already exist.
+        Return a user-friendly status message.
+        """
+        ticker = ticker.strip().upper()
+        if not ticker:
+            return "No ticker entered."
 
-            # Log if we dropped invalid items
-            dropped = len(raw_portfolio) - len(portfolio)
-            if dropped > 0:
-                logger.warning(
-                    "Dropped %d invalid tickers from %s when loading JSON.",
-                    dropped,
-                    filename,
-                )
-            portfolio = raw_portfolio
-            logger.info("Loaded %d tickers from %s", len(portfolio), filename)
-            return portfolio
-        except Exception as e:
-            logger.exception("Faild to load portfolio from %s", filename)
-            #fall back to empty if JSON is corrupted
-            return []
+        if ticker_exists(self.tickers, ticker):
+            return f"{ticker} is already in the portfolio."
+        
+        self.tickers.append(ticker)
+        return f"Added {ticker}"
     
-    #Fallback: if old text file exist, migrate once
-    legacy_text = "portfolio.txt"
-    if os.path.exists(legacy_text):
-        with open(legacy_text, "r",encoding="utf-8") as f:
-            for line in f:
-                ticker = line.strip()
-                if ticker:
-                    portfolio.append(ticker.upper())
-        logger.info(
-            "Loaded %d tickers from legacy %s, will save as JSON next time.",
-            len(portfolio),
-            legacy_text
-        )
-        return portfolio
-    
-    logger.info("No portfolio file found. Starting with empty portfolio.")
-    return portfolio
+    def remove(self,ticker: str) -> str:
+        """
+        Remove a ticker from the portfolio, with confirmation.
+        Return a message to user.
+        """
+        ticker = ticker.strip().upper()
+        if not ticker_exists(self.tickers, ticker):
+            return f"{ticker} is not in the portfolio." 
+        
+        if ask_confirmation(f"Are you sure you want to remove {ticker}? (Y/N)"):
+            self.tickers.remove(ticker)
+            return f"Removed {ticker}."
+        else:
+            return f"Did not remove {ticker}"
 
+
+def load_portfolio(filename: str = "portfolio.json") -> list[str]:
+    """
+     Backwards-compatible wrapper teturning a list of tickers.
+    """
+    return load_portfolio(filename=filename).tickers
 
 def save_portfolio(tickers: list[str], filename: str = "portfolio.json") -> None:
-    '''
-    Saves a list of tickers to a JSON file.
+    """
+    Backwards-compatible wrapper saving a list of tickers
+    """
+    portfolio = Portfolio(tickers, filename=filename)
+    portfolio.save()
 
-    JSON structure:
-        {
-            "tickers": ["AAPL", "MSFT", "TSLA"],
-            "updated_at": "2025-12-03T14:30:00"
-        }
-    '''
-
-    data = {
-        "tickers": [t.strip().upper() for t in tickers if t.strip()],
-        "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+def add_ticker(tickers: list[str],ticker: str) ->str:
+    """
+    Backwards-comtible wrapper to add a ticker to a raw list.
+    Mutates the given list.
+    """
+    portfolio = Portfolio(tickers)
+    return portfolio.add(ticker)
     
-    }
 
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(data,f,indent=2)
-        logger.info("Saved %d tickers to %s", len(data["tickers"]), filename)
-    except Exception:
-        logger.exception("Failed to save portfolio to %s", filename)
-
-
-def add_ticker(tickers_list, ticker_to_add):
+def remove_ticker(tickers: list[str], ticker: str) -> str:
     '''
-    Adds a ticker to the list if it doesn't already exist.
-    Return a status message.'''
-    if ticker_exists(tickers_list,ticker_to_add):
-        return f"{ticker_to_add.upper()} is already in the list."
-    else:
-        #If not append it
-        tickers_list.append(ticker_to_add.upper())
-        return f"Added {ticker_to_add.upper()}."
-
-def remove_ticker(tickers_list, ticker_to_remove):
+    Backwards-compatible wrapper to remove a ticker from a raw list.
+    Mutates the given list.
     '''
-    Removes a ticker from the list if exists,with confirmation.
-    Return a status message.
-    '''
-    #Find the real ticker to remove (to handle case insensitivity)
-    ticker_to_remove_upper = ticker_to_remove.upper()
+    portfolio = Portfolio(tickers)
+    return portfolio.remove(ticker)
 
-    if not ticker_exists(tickers_list,ticker_to_remove_upper):
-        return f"{ticker_to_remove_upper} was not in your portfolio."
     
-    #Ask for confirmation
-    if ask_confirmation(f"Are you sure you want to remove {ticker_to_remove_upper}?"):
-        #Find the item to remove
-        for ticker in tickers_list:
-            if ticker.upper() == ticker_to_remove_upper:
-                tickers_list.remove(ticker)
-                break
-        return f"Removed {ticker_to_remove_upper}."
-    else:
-        return f"Removal of {ticker_to_remove_upper} cancelled."
     
 
 def _compute_change_percent(current_price: float, prev_close: Optional[float]) -> float:
